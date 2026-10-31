@@ -2,9 +2,10 @@
 name = "unforged"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.80"
+rust-version = "1.89"
 description = "Unforged for Rust: check signatures with Nib and documents with Loupe, through the API or fully offline."
 license-file = "LICENSE"
+publish = false
 readme = "README.md"
 homepage = "https://unforged.ai"
 documentation = "https://unforged.ai/nib/docs"
@@ -31,3 +32,7 @@ url = "2"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "process", "time", "fs", "io-util"] }
 wiremock = "0.6"
 tempfile = "3"
+
+[[example]]
+name = "blocking"
+required-features = ["blocking"]
