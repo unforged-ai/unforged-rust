@@ -67,6 +67,9 @@ pub(super) async fn verify(
     if o.auto_approve {
         args.push("--auto-approve".into());
     }
+    if opts.document {
+        args.push("--document".into());
+    }
     if let Some(dir) = &opts.save_crops {
         args.push("--save-crops".into());
         args.push(path_arg(dir));

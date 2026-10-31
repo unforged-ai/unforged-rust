@@ -448,3 +448,46 @@ async fn a_missing_binary_says_where_to_point() {
         "{e:?}"
     );
 }
+
+#[tokio::test]
+async fn references_in_any_form_reach_the_binary_and_photos_can_be_pages() {
+    let stand = Stand::new(&answer(VERIFY_JSON));
+    let files = tempfile::tempdir().unwrap();
+    let crop = write(files.path(), "crop.png", b"\x89PNG");
+    let refs = files.path().join("refs");
+    std::fs::create_dir(&refs).unwrap();
+    write(&refs, "card.jpg", b"\xff\xd8");
+    write(&refs, "scan.tif", b"II*\0");
+    write(&refs, ".hidden", b"x");
+    let client = stand.nib().build().unwrap();
+    client
+        .nib()
+        .verify(
+            File::named("photo.jpg", b"\xff\xd8photo".to_vec()),
+            VerifyOptions::references([File::path(&crop), File::path(&refs)])
+                .with_references([
+                    File::named("signed.pdf", b"%PDF".to_vec()),
+                    File::bytes(b"II*\0tiff".to_vec()),
+                ])
+                .document(),
+        )
+        .await
+        .unwrap();
+    let args = stand.args();
+    let refs_given: Vec<&String> = args
+        .windows(2)
+        .filter(|w| w[0] == "--ref")
+        .map(|w| &w[1])
+        .collect();
+    assert_eq!(refs_given.len(), 5, "{args:?}");
+    assert_eq!(refs_given[0], &crop.display().to_string());
+    assert!(refs_given[1].ends_with("card.jpg"));
+    assert!(refs_given[2].ends_with("scan.tif"));
+    assert!(refs_given[3].ends_with(".pdf"));
+    assert!(refs_given[4].ends_with(".tif"));
+    assert!(args.contains(&"--document".to_string()));
+    assert_eq!(
+        std::fs::read(stand.dir.path().join("questioned")).unwrap(),
+        b"\xff\xd8photo"
+    );
+}

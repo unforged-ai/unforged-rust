@@ -36,6 +36,7 @@ pub struct VerifyOptions {
     pub process: Option<String>,
     pub metadata: BTreeMap<String, String>,
     pub save_crops: Option<PathBuf>,
+    pub document: bool,
     pub timeout: Option<Duration>,
 }
 
@@ -109,6 +110,13 @@ impl VerifyOptions {
     /// Save each signature found as a PNG in this folder.
     pub fn save_crops(mut self, dir: impl Into<PathBuf>) -> Self {
         self.save_crops = Some(dir.into());
+        self
+    }
+
+    /// Offline, read a photo or scan of a whole page as a page to search for signatures, not as
+    /// one signature. PDFs, TIFFs and forms are always read as pages.
+    pub fn document(mut self) -> Self {
+        self.document = true;
         self
     }
 

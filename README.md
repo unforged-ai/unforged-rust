@@ -111,6 +111,41 @@ A reference source can also be a map of subjects to files, or a folder with `{su
 path (`ReferenceSource::folder("/secure/references/{subject}")`), which the SDK only ever reads.
 Adding or removing references (`enrol`, `subjects`) is online only.
 
+### What Nib can compare
+
+References can be in whatever form you hold them. A signature on its own (a crop from a cheque, a
+signing pad or a scanned card, as PNG, JPEG, WebP, BMP or GIF) is used as it is. A whole page (a
+signed PDF, a multi-page TIFF, an earlier copy of the same form) has its signature found for you:
+the clearest one on the first pages, or the named box when the client has the form's template. If
+a reference page holds two signatures that are equally likely, it's set aside rather than risk
+learning the wrong one.
+
+What you check can be a signature on its own or the whole document. On a document, every
+signature is compared and the best match decides, unless you point at one with
+`Target::region(page, x, y, w, h)` or `Target::named_box("applicant_signature")`. A phone photo or
+scan of a single page is read as one signature unless you ask for it to be read as a page with
+`VerifyOptions::document()`.
+
+```rust
+use unforged::{File, Target};
+
+let refs = VerifyOptions::references(["refs/card.jpg", "refs/2019-mandate.pdf", "refs/pad.png"])
+    .with_references([File::named("from-our-db.tif", tiff_bytes)]);
+nib.verify("cheque-signature.png", refs.clone()).await?;
+nib.verify("mandate.pdf", refs.clone().target(Target::region(2, 140, 1980, 900, 260))).await?;
+nib.verify("photo-of-form.jpg", refs.document().save_crops("crops/")).await?;
+```
+
+The examples folder runs each of these against your own files:
+
+| Example | Shows |
+|---|---|
+| `offline_reference_formats` | a folder of mixed references, each on its own, and the same from bytes |
+| `offline_reference_sources` | checking by subject with a folder, your own lookup, or a map |
+| `offline_signature_or_document` | a signature crop, a whole document, one region, a photo of a page |
+| `offline_forms` | form templates and named boxes |
+| `offline_extract_then_verify` | cutting out every signature, then checking each |
+
 ```rust
 let licence = client.nib().licence().await?;
 println!("{} until {}", licence.issued_to, licence.valid_until);
@@ -234,3 +269,8 @@ just hooks   # the pre-push hook
 
 The tests run against a stand-in API and stand-in binaries. To run them against the real offline
 binaries too: `just test-real <pack folder> <licence file> <test kit files folder>`.
+
+## Licence
+
+The SDK is under the MIT licence (see `LICENSE`). The offline binaries and their models come with
+your Unforged licence, not this one.
