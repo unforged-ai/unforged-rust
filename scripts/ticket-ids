@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# Ticket IDs (UNF-120, UNF-726): all work is tracked in Linear (team UNF; CLAUDE.md), so
+# branches, what lands on main and PR titles must name their ticket. Plain bash + git, no dev shell:
+# the pre-push hook (.githooks/pre-push) and ci.yml's `ticket-ids` job run it.
+#
+#   scripts/ticket-ids branch <name>        a branch name: <kind>/UNF-<n>[-slug], e.g. task/UNF-120-ticket-ids
+#                                           (any case: Linear's copied names are p/unf-<n>-slug)
+#   scripts/ticket-ids range <old> <new>    every commit main's first-parent line gains in old..new names
+#                                           a ticket in its subject (a merge "Merge task/UNF-12-x: ..."
+#                                           names it through the branch)
+#   scripts/ticket-ids title <text>         a PR title names a ticket
+#
+# Exempt: main itself; dependabot's branches and commits; merges that only bring main in ("Merge
+# origin/main into ...", "Merge remote-tracking branch 'origin/main'", "Merge main into ..."). Commits
+# only on a branch are not checked: the merge that lands them names the ticket. Exits 1 and says how
+# to fix on the first failure.
+set -euo pipefail
+
+id_re='[Uu][Nn][Ff]-[0-9]+'
+branch_re='^[a-z][a-z0-9]*/([Uu][Nn][Ff])-[0-9]+(-[A-Za-z0-9._-]+)?$'
+sync_re="^Merge (remote-tracking branch |branch )?'?(origin/)?main'?( |:|\$)"
+
+say() { printf 'ticket-ids: %s\n' "$*" >&2; }
+
+branch_ok() { # name
+  local name="${1#refs/heads/}"
+  case "$name" in
+  main | dependabot/*) return 0 ;;
+  esac
+  [[ "$name" =~ $branch_re ]]
+}
+
+cmd="${1:-}"
+case "$cmd" in
+branch)
+  [ $# -eq 2 ] || { say "usage: scripts/ticket-ids branch <name>"; exit 2; }
+  if ! branch_ok "$2"; then
+    say "branch '${2#refs/heads/}' names no ticket: use <kind>/UNF-<n>-slug, e.g. task/UNF-120-ticket-ids"
+    say "no ticket yet? shape one in Linear first (CLAUDE.md), then: git branch -m <old> <kind>/UNF-<n>-slug"
+    exit 1
+  fi
+  ;;
+title)
+  [ $# -eq 2 ] || { say "usage: scripts/ticket-ids title <text>"; exit 2; }
+  if ! [[ "$2" =~ $id_re ]]; then
+    say "PR title '$2' names no ticket: start it with UNF-<n>, e.g. 'UNF-120: ticket ID check'"
+    exit 1
+  fi
+  ;;
+range)
+  [ $# -eq 3 ] || { say "usage: scripts/ticket-ids range <old> <new>"; exit 2; }
+  old="$2" new="$3" bad=0
+  while IFS=$'\t' read -r sha author subject; do
+    [ -n "$sha" ] || continue
+    [[ "$subject" =~ $id_re ]] && continue
+    [[ "$subject" =~ $sync_re ]] && continue
+    [[ "$author" == dependabot* ]] && continue
+    say "${sha:0:12} names no ticket: $subject"
+    bad=1
+  done < <(git log --first-parent --format='%H%x09%an%x09%s' "$old..$new")
+  if [ "$bad" = 1 ]; then
+    say "everything main gains must name its Linear ticket (UNF-<n>) in the subject:"
+    say "  a merge: git merge --no-ff task/UNF-<n>-slug (its default subject names the branch),"
+    say "  or reword it: git commit --amend -m 'Merge task/UNF-<n>-slug: ...' before pushing"
+    exit 1
+  fi
+  ;;
+*)
+  say "usage: scripts/ticket-ids branch <name> | range <old> <new> | title <text>"
+  exit 2
+  ;;
+esac

@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Branch and ticket IDs first, then the checks CI runs.
+set -euo pipefail
+zero=0000000000000000000000000000000000000000
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ "$local_sha" = "$zero" ] && continue
+  scripts/ticket-ids branch "${remote_ref#refs/heads/}"
+  if [ "${remote_ref#refs/heads/}" = main ] && [ "$remote_sha" != "$zero" ]; then
+    scripts/ticket-ids range "$remote_sha" "$local_sha"
+  fi
+done
+cargo fmt -- --check
+cargo clippy --all-targets --all-features -- -D warnings
+cargo test --all-features
