@@ -69,6 +69,7 @@ pub(crate) struct Request {
     pub body: Body,
     pub idempotency_key: Option<String>,
     pub accept: &'static str,
+    pub headers: Vec<(&'static str, String)>,
 }
 
 impl Request {
@@ -80,6 +81,7 @@ impl Request {
             body: Body::None,
             idempotency_key: None,
             accept: "application/json",
+            headers: Vec::new(),
         }
     }
 
@@ -120,6 +122,11 @@ impl Request {
 
     pub fn accept(mut self, accept: &'static str) -> Self {
         self.accept = accept;
+        self
+    }
+
+    pub fn header(mut self, name: &'static str, value: impl Into<String>) -> Self {
+        self.headers.push((name, value.into()));
         self
     }
 }
@@ -287,6 +294,9 @@ impl Transport {
                 "unforged-org",
                 HeaderValue::from_str(o).map_err(|_| bad("organisation"))?,
             );
+        }
+        for (name, value) in &req.headers {
+            h.insert(*name, HeaderValue::from_str(value).map_err(|_| bad(name))?);
         }
         match &req.body {
             Body::Json(_) => {

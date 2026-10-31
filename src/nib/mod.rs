@@ -1,4 +1,5 @@
 //! Nib: check handwritten signatures, through the API or offline.
+mod admin;
 mod hosted;
 mod models;
 mod offline;
@@ -7,6 +8,10 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::time::Duration;
 
+pub use admin::{
+    BucketKey, BucketKeys, HistorySettings, LearningSettings, Policies, PolicySettings,
+    SavedPolicy, Session, Sessions, Settings, Template, Templates,
+};
 pub use hosted::{CheckItem, Checks, CreateOptions, ItemFilters, JobFilters, Subjects};
 pub use models::{
     CheckedItem, Confirmation, Decision, EnrolledReference, Enrolment, ExtractedSignature,
@@ -172,6 +177,44 @@ impl<'a> Nib<'a> {
     /// The people you check and their references (online only).
     pub fn subjects(&self) -> Result<Subjects<'a>> {
         Ok(Subjects::new(self.client.hosted(ONLINE_ONLY_SUBJECTS)?))
+    }
+
+    fn account(&self, what: &str) -> Result<&'a crate::http::Transport> {
+        self.client.hosted(&format!(
+            "{what} live in your Unforged account, so they're online only; offline, the binary's own settings and files apply"
+        ))
+    }
+
+    /// Short-lived tokens that let your own app run one check for one person (online only).
+    pub fn sessions(&self) -> Result<Sessions<'a>> {
+        Ok(Sessions(self.account("sessions")?))
+    }
+
+    /// Your saved decision policies (online only).
+    pub fn policies(&self) -> Result<Policies<'a>> {
+        Ok(Policies(self.account("saved policies")?))
+    }
+
+    /// Form templates (online only; offline, pass template files to the client).
+    pub fn templates(&self) -> Result<Templates<'a>> {
+        Ok(Templates(self.account("saved form templates")?))
+    }
+
+    /// Access keys for your own bucket (online only).
+    pub fn bucket_keys(&self) -> Result<BucketKeys<'a>> {
+        Ok(BucketKeys(self.account("bucket keys")?))
+    }
+
+    /// History and learning settings (online only).
+    pub fn settings(&self) -> Result<Settings<'a>> {
+        Ok(Settings(self.account("account settings")?))
+    }
+
+    /// Where we send check results as they happen (online only).
+    pub fn webhooks(&self) -> Result<crate::webhook_endpoints::NibWebhooks<'a>> {
+        Ok(crate::webhook_endpoints::NibWebhooks(
+            crate::webhook_endpoints::Webhooks::new(self.account("webhooks")?, "/nib/webhooks"),
+        ))
     }
 
     /// Did these people sign these documents? `people` maps each person's label to their

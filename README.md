@@ -2,7 +2,8 @@
 
 Check signatures with Nib and documents with Loupe from Rust, through our API or entirely on your
 own servers with the offline binaries. The same code runs either way, so you can build against the
-API and move to offline (or back) by changing one setting.
+API and move to offline (or back) by changing one setting. Folio records, Sig signing packages and
+your account's keys are here too, through the API.
 
 ```toml
 [dependencies]
@@ -162,6 +163,37 @@ checks.confirm(&job.job_id, 0).await?; // a genuine signature, which may become 
 println!("{}", client.nib().usage().await?.estimated_charge);
 ```
 
+## Folio, Sig and your account (online)
+
+```rust
+use unforged::folio::{AccessReason, DownloadOptions, FilingOptions, Why};
+use unforged::sig::{PackageOptions, Signer};
+
+let folio = client.folio()?;
+let receipt = folio
+    .records()
+    .file("agreement.pdf", FilingOptions::folder("loans/2026").retention_class("loan-7y"))
+    .await?;
+let pdf = folio
+    .records()
+    .download(&receipt.record_id, DownloadOptions::reason(AccessReason::code("audit")))
+    .await?;
+folio.records().extend_retention(&receipt.record_id, "2034-03-31", Why::code("dispute")).await?;
+
+let package = client
+    .sig()?
+    .create_package(
+        vec!["loan.pdf".into()],
+        &[Signer::new("Ada Lovelace", "ada@example.com")],
+        PackageOptions { title: Some("Your loan agreement".into()), ..Default::default() },
+    )
+    .await?;
+```
+
+A download is checked against the record's receipt before you get it, and a copy that doesn't
+match comes back as `Error::Integrity` rather than being saved. Changes your organisation asks a
+second person to approve come back as `Change::Pending` with the approval.
+
 ## Errors
 
 Every call returns `unforged::Result`. The errors you're most likely to handle:
@@ -173,7 +205,8 @@ Every call returns `unforged::Result`. The errors you're most likely to handle:
 | `Error::Api` with `kind` `Authentication` or `PermissionDenied` | The key is wrong, or can't do this |
 | `Error::Api` with `kind` `RateLimited` | Too many requests, or the month's checks are used up |
 | `Error::Licence`, `Error::NotLicensed` | Offline: the licence is missing or expired, or doesn't cover this |
-| `Error::CheckTimeout` | The check is still running; `job_id` finds it later |
+| `Error::CheckTimeout` | The check (or a queued filing) is still running; `job_id` finds it later |
+| `Error::Integrity` | A downloaded record didn't match its receipt; try again |
 
 Busy and rate-limited requests are tried again for you with the same idempotency key, so trying
 again never checks a document twice.

@@ -117,6 +117,27 @@ impl Unforged {
         crate::loupe::Loupe::new(self)
     }
 
+    /// Folio: keep records for as long as their retention class says (online only).
+    pub fn folio(&self) -> Result<crate::folio::Folio<'_>> {
+        Ok(crate::folio::Folio(self.hosted(
+            "Folio keeps your records for you, so it works online only: create the client with your API key",
+        )?))
+    }
+
+    /// Sig: send documents to be signed and download the signed copies (online only).
+    pub fn sig(&self) -> Result<crate::sig::Sig<'_>> {
+        Ok(crate::sig::Sig(self.hosted(
+            "Signing happens online, so Sig isn't available offline",
+        )?))
+    }
+
+    /// Your organisation's keys and audit log, and the API's status (online only).
+    pub fn account(&self) -> Result<crate::account::Account<'_>> {
+        Ok(crate::account::Account(self.hosted(
+            "API keys and the audit log belong to your Unforged account, so they're online only",
+        )?))
+    }
+
     pub(crate) fn hosted(&self, what: &str) -> Result<&Transport> {
         match &*self.backend {
             Backend::Hosted(t) => Ok(t),

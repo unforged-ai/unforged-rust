@@ -169,6 +169,8 @@ pub enum Error {
     Licence { message: String },
     /// The offline licence doesn't include this command.
     NotLicensed { message: String },
+    /// A downloaded record didn't match its receipt, so it wasn't kept.
+    Integrity { message: String, record_id: String },
     /// A webhook's signature didn't verify, or its timestamp is too old.
     WebhookSignature(String),
     /// An answer couldn't be read.
@@ -229,6 +231,7 @@ impl fmt::Display for Error {
             Error::CheckTimeout { message, .. }
             | Error::Connection { message, .. }
             | Error::Offline { message, .. }
+            | Error::Integrity { message, .. }
             | Error::Licence { message }
             | Error::NotLicensed { message } => f.write_str(message),
             Error::Io(e) => e.fmt(f),

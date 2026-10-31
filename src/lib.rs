@@ -22,13 +22,18 @@ mod error;
 mod files;
 mod http;
 mod json;
+mod model;
 mod offline;
 mod page;
+mod webhook_endpoints;
 
+pub mod account;
 #[cfg(feature = "blocking")]
 pub mod blocking;
+pub mod folio;
 pub mod loupe;
 pub mod nib;
+pub mod sig;
 pub mod webhooks;
 
 use std::path::PathBuf;
@@ -36,8 +41,10 @@ use std::path::PathBuf;
 pub use client::{Builder, Mode, Unforged};
 pub use error::{ApiError, ApiErrorKind, Error, Result};
 pub use files::{File, Target};
+pub use model::Secret;
 pub use offline::{Licence, ReferenceSource};
 pub use page::Page;
+pub use webhook_endpoints::{NibWebhooks, Webhook, WebhookDelivery, Webhooks};
 
 /// A decision policy: one of your saved policies by name (online), or a policy in full.
 #[derive(Debug, Clone, PartialEq)]

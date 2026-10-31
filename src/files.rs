@@ -238,6 +238,23 @@ pub(crate) fn check_id<'a>(value: &'a str, what: &str) -> Result<&'a str> {
     }
 }
 
+/// A path segment from any non-empty name, percent-encoded.
+pub(crate) fn seg(value: &str, what: &str) -> Result<String> {
+    if value.is_empty() {
+        return Err(Error::invalid(format!("{what} can't be empty")));
+    }
+    Ok(value
+        .bytes()
+        .map(|b| {
+            if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'~') {
+                (b as char).to_string()
+            } else {
+                format!("%{b:02X}")
+            }
+        })
+        .collect())
+}
+
 /// Files, with each folder replaced by the files directly inside it (in name order).
 pub(crate) fn expand(files: Vec<File>) -> Result<Vec<File>> {
     let mut out = Vec::with_capacity(files.len());
@@ -309,6 +326,15 @@ mod tests {
         assert!(check_id("a/b", "subject").is_err());
         assert!(check_id("", "subject").is_err());
         assert!(check_id(&"x".repeat(129), "subject").is_err());
+    }
+
+    #[test]
+    fn names_are_percent_encoded() {
+        assert_eq!(
+            seg("loan forms/é", "name").unwrap(),
+            "loan%20forms%2F%C3%A9"
+        );
+        assert!(seg("", "name").is_err());
     }
 
     #[test]
