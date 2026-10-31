@@ -39,8 +39,11 @@ impl Parts {
                 } else {
                     format!("{hint}-{n}")
                 };
-                self.parts
-                    .push(Part::file(&name, filename.unwrap_or_else(|| name.clone()), data));
+                self.parts.push(Part::file(
+                    &name,
+                    filename.unwrap_or_else(|| name.clone()),
+                    data,
+                ));
                 Ok(Value::String(name))
             }
         }
@@ -444,13 +447,21 @@ impl<'a> Subjects<'a> {
     }
 
     pub async fn get(&self, subject_reference: &str) -> Result<Subject> {
-        let r = Request::get(format!("/nib/subjects/{}", check_id(subject_reference, "subject")?));
+        let r = Request::get(format!(
+            "/nib/subjects/{}",
+            check_id(subject_reference, "subject")?
+        ));
         Ok(Subject::from_json(&self.http.json(r).await?))
     }
 
     /// Add reference signatures, named after their files, creating the subject if it's new.
     /// `source` says where they came from, such as `signature_card` or `unverified`.
-    pub async fn enrol<I, F>(&self, subject_reference: &str, references: I, source: &str) -> Result<Enrolment>
+    pub async fn enrol<I, F>(
+        &self,
+        subject_reference: &str,
+        references: I,
+        source: &str,
+    ) -> Result<Enrolment>
     where
         I: IntoIterator<Item = F>,
         F: Into<File>,
@@ -481,7 +492,11 @@ impl<'a> Subjects<'a> {
             for (rid, f) in &local {
                 check_id(rid, "reference id")?;
                 let (filename, data) = f.read().await?;
-                parts.push(Part::file(rid, filename.unwrap_or_else(|| rid.clone()), data));
+                parts.push(Part::file(
+                    rid,
+                    filename.unwrap_or_else(|| rid.clone()),
+                    data,
+                ));
                 parts.push(Part::text(&format!("source.{rid}"), source));
             }
             let (ct, body) = multipart(parts);
@@ -546,12 +561,14 @@ impl<'a> Subjects<'a> {
 
     /// Remove learned references from `since` (RFC 3339).
     pub async fn unlearn_since(&self, subject_reference: &str, since: &str) -> Result<Vec<String>> {
-        self.unlearn(subject_reference, json!({ "since": since })).await
+        self.unlearn(subject_reference, json!({ "since": since }))
+            .await
     }
 
     /// Remove the reference learned from one check (`job/index`).
     pub async fn unlearn_check(&self, subject_reference: &str, check: &str) -> Result<Vec<String>> {
-        self.unlearn(subject_reference, json!({ "check": check })).await
+        self.unlearn(subject_reference, json!({ "check": check }))
+            .await
     }
 
     async fn unlearn(&self, subject_reference: &str, body: Value) -> Result<Vec<String>> {
@@ -663,7 +680,12 @@ pub(super) async fn verify(http: &Transport, file: File, o: VerifyOptions) -> Re
     Ok(v)
 }
 
-async fn save_crops(checks: &Checks<'_>, v: &mut Verification, file: &File, dir: PathBuf) -> Result<()> {
+async fn save_crops(
+    checks: &Checks<'_>,
+    v: &mut Verification,
+    file: &File,
+    dir: PathBuf,
+) -> Result<()> {
     if v.signatures.is_empty() {
         return Ok(());
     }
@@ -723,7 +745,9 @@ where
 }
 
 pub(super) async fn usage(http: &Transport) -> Result<Usage> {
-    Ok(Usage::from_json(&http.json(Request::get("/nib/usage")).await?))
+    Ok(Usage::from_json(
+        &http.json(Request::get("/nib/usage")).await?,
+    ))
 }
 
 #[cfg(test)]

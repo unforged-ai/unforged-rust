@@ -135,7 +135,8 @@ mod tests {
             .collect()
     }
 
-    const BODY: &[u8] = br#"{"id":"evt_1","type":"job.completed","created_at":"x","data":{"job_id":"j"}}"#;
+    const BODY: &[u8] =
+        br#"{"id":"evt_1","type":"job.completed","created_at":"x","data":{"job_id":"j"}}"#;
 
     #[test]
     fn a_good_signature_verifies() {
@@ -148,7 +149,11 @@ mod tests {
 
     #[test]
     fn any_of_several_signatures_will_do() {
-        let h = format!("t=1000,v1={},v1={}", "0".repeat(64), sign("whsec", 1000, BODY));
+        let h = format!(
+            "t=1000,v1={},v1={}",
+            "0".repeat(64),
+            sign("whsec", 1000, BODY)
+        );
         verify_at(BODY, Some(&h), "whsec", DEFAULT_TOLERANCE, 1000).unwrap();
     }
 

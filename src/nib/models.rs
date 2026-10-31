@@ -128,9 +128,10 @@ impl Signature {
                 }),
             })
             .collect();
-        let band = v.get("band").and_then(Value::as_array).and_then(|a| {
-            Some((a.first()?.as_f64()?, a.get(1)?.as_f64()?))
-        });
+        let band = v
+            .get("band")
+            .and_then(Value::as_array)
+            .and_then(|a| Some((a.first()?.as_f64()?, a.get(1)?.as_f64()?)));
         Self {
             index: u(v, "index").unwrap_or(0) as u32,
             page: u(v, "page").unwrap_or(1) as u32,
@@ -212,13 +213,10 @@ impl Verification {
 
     pub(crate) fn from_hosted(v: &Value, job_id: Option<&str>) -> Self {
         let versions = obj(v, "versions");
-        let error = v
-            .get("error")
-            .filter(|e| e.is_object())
-            .map(|e| ItemError {
-                kind: st(e, "type"),
-                detail: st(e, "detail"),
-            });
+        let error = v.get("error").filter(|e| e.is_object()).map(|e| ItemError {
+            kind: st(e, "type"),
+            detail: st(e, "detail"),
+        });
         Self {
             decision: Decision::of(v, "decision"),
             signatures: arr(v, "signatures")
@@ -674,7 +672,10 @@ mod tests {
         let best = r.best_match().unwrap();
         assert_eq!(best.bbox, [1, 2, 3, 4]);
         assert_eq!(best.band, Some((0.9, 0.97)));
-        assert_eq!(best.per_reference[1].reference.as_deref(), Some("passport.pdf"));
+        assert_eq!(
+            best.per_reference[1].reference.as_deref(),
+            Some("passport.pdf")
+        );
         assert_eq!(r.notices, vec!["renew soon"]);
     }
 

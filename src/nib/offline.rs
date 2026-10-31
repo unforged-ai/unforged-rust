@@ -10,7 +10,11 @@ use crate::files::{check_id, expand, File};
 use crate::offline::{on_disk, path_arg, write_private};
 use crate::Policy;
 
-pub(super) async fn verify(o: &OfflineSettings, file: File, opts: VerifyOptions) -> Result<Verification> {
+pub(super) async fn verify(
+    o: &OfflineSettings,
+    file: File,
+    opts: VerifyOptions,
+) -> Result<Verification> {
     let runner = o.nib()?;
     let scratch = runner.scratch()?;
     let tmp = scratch.path();
@@ -32,7 +36,9 @@ pub(super) async fn verify(o: &OfflineSettings, file: File, opts: VerifyOptions)
         given.extend(found);
     }
     if given.is_empty() {
-        return Err(Error::no_references("no reference signatures to compare with"));
+        return Err(Error::no_references(
+            "no reference signatures to compare with",
+        ));
     }
     let mut args = vec!["verify".to_string(), path_arg(&questioned)];
     for (i, f) in given.iter().enumerate() {

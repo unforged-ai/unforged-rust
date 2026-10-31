@@ -9,7 +9,7 @@ use std::time::Duration;
 
 pub use hosted::{CheckItem, Checks, CreateOptions, ItemFilters, JobFilters, Subjects};
 pub use models::{
-    CheckedItem, Confirmation, Decision, Enrolment, EnrolledReference, ExtractedSignature,
+    CheckedItem, Confirmation, Decision, EnrolledReference, Enrolment, ExtractedSignature,
     Extraction, ItemError, Job, OfflineLicence, Quality, Reference, ReferenceScore, Signature,
     SignerMatch, Subject, SubjectSummary, Usage, Verification,
 };
@@ -136,7 +136,11 @@ impl<'a> Nib<'a> {
     }
 
     /// Check the signature on a document, and wait for the answer.
-    pub async fn verify(&self, file: impl Into<File>, options: VerifyOptions) -> Result<Verification> {
+    pub async fn verify(
+        &self,
+        file: impl Into<File>,
+        options: VerifyOptions,
+    ) -> Result<Verification> {
         if options.subject.is_none() && options.references.is_empty() {
             return Err(Error::invalid(
                 "say what to compare with: a subject or reference files",
@@ -223,9 +227,7 @@ impl<'a> Nib<'a> {
     pub async fn licence(&self) -> Result<OfflineLicence> {
         match &*self.client.backend {
             Backend::Offline(o) => o.nib()?.licence().await,
-            Backend::Hosted(_) => Err(Error::not_supported(
-                "licence is for the offline binary",
-            )),
+            Backend::Hosted(_) => Err(Error::not_supported("licence is for the offline binary")),
         }
     }
 }

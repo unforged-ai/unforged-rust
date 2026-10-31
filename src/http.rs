@@ -122,7 +122,6 @@ impl Request {
         self.accept = accept;
         self
     }
-
 }
 
 /// An answer.
@@ -266,7 +265,8 @@ impl Transport {
 
     fn headers(&self, req: &Request, once: bool) -> Result<HeaderMap> {
         let mut h = HeaderMap::new();
-        let bad = |what: &str| Error::invalid(format!("the {what} has characters a header can't carry"));
+        let bad =
+            |what: &str| Error::invalid(format!("the {what} has characters a header can't carry"));
         let mut auth = HeaderValue::from_str(&format!("Bearer {}", self.config.api_key))
             .map_err(|_| bad("API key"))?;
         auth.set_sensitive(true);
@@ -360,7 +360,10 @@ impl Transport {
                 }
             }
             let mut retryable = (RETRY_STATUS.contains(&resp.status)
-                || err.code.as_deref().is_some_and(|c| RETRY_CODES.contains(&c)))
+                || err
+                    .code
+                    .as_deref()
+                    .is_some_and(|c| RETRY_CODES.contains(&c)))
                 && !(resp.status == 504 && err.job_id().is_some());
             if once && resp.status != 429 {
                 retryable = false;
@@ -517,7 +520,11 @@ mod tests {
 
     #[test]
     fn multipart_quotes_names() {
-        let (ct, body) = multipart(vec![Part::file("questioned", "a\"b.pdf".into(), b"x".to_vec())]);
+        let (ct, body) = multipart(vec![Part::file(
+            "questioned",
+            "a\"b.pdf".into(),
+            b"x".to_vec(),
+        )]);
         assert!(ct.starts_with("multipart/form-data; boundary=unforged-"));
         let text = String::from_utf8(body).unwrap();
         assert!(text.contains("filename=\"a\\\"b.pdf\""));

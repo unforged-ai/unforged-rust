@@ -59,8 +59,7 @@ fn looks_like_token(s: &str) -> bool {
     let parts: Vec<&str> = s.split('.').collect();
     let ok = |p: &str, min: usize| {
         p.len() >= min
-            && p
-                .bytes()
+            && p.bytes()
                 .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
     };
     parts.len() == 3 && ok(parts[0], 10) && ok(parts[1], 10) && ok(parts[2], 1)
@@ -227,9 +226,10 @@ impl Runner {
             None => run.await,
         }
         .map_err(|e| match e.kind() {
-            std::io::ErrorKind::NotFound => {
-                fail(format!("couldn't run {}: no such file", self.binary.display()))
-            }
+            std::io::ErrorKind::NotFound => fail(format!(
+                "couldn't run {}: no such file",
+                self.binary.display()
+            )),
             std::io::ErrorKind::PermissionDenied => fail(format!(
                 "couldn't run {}: it isn't executable",
                 self.binary.display()
@@ -285,7 +285,9 @@ impl Runner {
     }
 
     pub async fn licence(&self) -> Result<crate::nib::OfflineLicence> {
-        let out = self.run(vec!["licence".into(), "--json".into()], None, &[0]).await?;
+        let out = self
+            .run(vec!["licence".into(), "--json".into()], None, &[0])
+            .await?;
         let v: Value = serde_json::from_str(out.stdout.trim()).map_err(|_| Error::Offline {
             message: format!("{}'s licence answer wasn't JSON", self.name()),
             exit_code: Some(0),
@@ -297,7 +299,10 @@ impl Runner {
 
 fn last_error_line(s: &str) -> String {
     let line = s.trim().lines().last().unwrap_or("").trim();
-    line.strip_prefix("error:").unwrap_or(line).trim().to_string()
+    line.strip_prefix("error:")
+        .unwrap_or(line)
+        .trim()
+        .to_string()
 }
 
 /// The file on disk: its own path, or `data` written to a private file in `dir` as `name`.

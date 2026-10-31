@@ -156,9 +156,7 @@ impl<'a> Loupe<'a> {
     pub async fn licence(&self) -> Result<OfflineLicence> {
         match &*self.client.backend {
             Backend::Offline(o) => o.loupe()?.licence().await,
-            Backend::Hosted(_) => Err(Error::not_supported(
-                "licence is for the offline binary",
-            )),
+            Backend::Hosted(_) => Err(Error::not_supported("licence is for the offline binary")),
         }
     }
 }
@@ -183,7 +181,11 @@ impl LoupeChecks<'_> {
                 f => {
                     let (name, data) = f.read().await?;
                     let name = name.unwrap_or_else(|| {
-                        format!("document-{}{}", parts.len() + 1, crate::files::extension(&data))
+                        format!(
+                            "document-{}{}",
+                            parts.len() + 1,
+                            crate::files::extension(&data)
+                        )
                     });
                     parts.push(Part::file("file", name, data));
                 }
@@ -276,7 +278,11 @@ fn check_id_ok(id: &str) -> Result<&str> {
     check_id(id, "check id")
 }
 
-async fn check_offline(o: &OfflineSettings, files: Vec<File>, opts: LoupeOptions) -> Result<LoupeReport> {
+async fn check_offline(
+    o: &OfflineSettings,
+    files: Vec<File>,
+    opts: LoupeOptions,
+) -> Result<LoupeReport> {
     if opts.loupe_version.is_some() {
         return Err(Error::not_supported(
             "offline, checks use the version of unforged-loupe you run",
@@ -289,7 +295,10 @@ async fn check_offline(o: &OfflineSettings, files: Vec<File>, opts: LoupeOptions
     for (i, f) in files.iter().enumerate() {
         let p = match f {
             File::Path(p) if p.is_dir() => p.clone(),
-            File::Bytes { name: Some(n), data } => {
+            File::Bytes {
+                name: Some(n),
+                data,
+            } => {
                 let safe: String = n
                     .chars()
                     .map(|c| if c == '/' || c == '\\' { '-' } else { c })

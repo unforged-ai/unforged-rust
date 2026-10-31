@@ -74,7 +74,10 @@ impl DocumentResult {
             probability: f(v, "probability").unwrap_or(0.0),
             top_reasons: strings(v, "top_reasons"),
             rating: s(v, "rating"),
-            trusted_because: arr(v, "trusted_because").iter().map(Assurance::from_json).collect(),
+            trusted_because: arr(v, "trusted_because")
+                .iter()
+                .map(Assurance::from_json)
+                .collect(),
             not_checked: strings(v, "not_checked"),
             signals: arr(v, "signals").iter().map(Signal::from_json).collect(),
             raw: v.clone(),
@@ -110,8 +113,14 @@ impl LoupeResult {
             probability: f(v, "probability").unwrap_or(0.0),
             top_reasons: strings(v, "top_reasons"),
             rating: s(v, "rating"),
-            trusted_because: arr(v, "trusted_because").iter().map(Assurance::from_json).collect(),
-            documents: arr(v, "documents").iter().map(DocumentResult::from_json).collect(),
+            trusted_because: arr(v, "trusted_because")
+                .iter()
+                .map(Assurance::from_json)
+                .collect(),
+            documents: arr(v, "documents")
+                .iter()
+                .map(DocumentResult::from_json)
+                .collect(),
             signals: arr(v, "signals").iter().map(Signal::from_json).collect(),
             versions: obj(v, "versions"),
             raw: v.clone(),
