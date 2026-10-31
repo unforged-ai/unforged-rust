@@ -1,0 +1,32 @@
+[package]
+name = "unforged"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80"
+description = "Unforged for Rust: check signatures with Nib and documents with Loupe, through the API or fully offline."
+license-file = "LICENSE"
+readme = "README.md"
+homepage = "https://unforged.ai"
+documentation = "https://unforged.ai/nib/docs"
+repository = "https://github.com/unforged-ai/unforged-rust"
+keywords = ["unforged", "signature", "verification", "fraud", "documents"]
+categories = ["api-bindings"]
+
+[features]
+default = []
+blocking = ["tokio/rt"]
+
+[dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "http2"] }
+tokio = { version = "1", features = ["process", "time", "fs", "io-util", "macros"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tempfile = "3"
+uuid = { version = "1", features = ["v4"] }
+hmac = "0.12"
+sha2 = "0.10"
+url = "2"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "process", "time", "fs", "io-util"] }
+wiremock = "0.6"
