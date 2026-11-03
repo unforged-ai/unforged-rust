@@ -3,7 +3,7 @@
 //!
 //! ```text
 //! export UNFORGED_NIB_BINARY=/opt/unforged/unforged-nib UNFORGED_LICENSE_FILE=/opt/unforged/nib.lic
-//! cargo run --example offline_reference_sources -- cust-88 cheque.pdf /secure/references
+//! cargo run --example offline_reference_sources -- cust-88 cheque.pdf /secure/references [extra.png]
 //! ```
 //!
 //! `/secure/references/cust-88/` holds that customer's references, in any format.
@@ -23,9 +23,15 @@ fn client(source: ReferenceSource) -> unforged::Result<Unforged> {
 #[tokio::main]
 async fn main() -> unforged::Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let [subject, questioned, root] = args.as_slice() else {
-        eprintln!("usage: offline_reference_sources <subject> <questioned> <references root>");
-        std::process::exit(2);
+    let (subject, questioned, root, extra) = match args.as_slice() {
+        [s, q, r] => (s, q, r, None),
+        [s, q, r, e] => (s, q, r, Some(PathBuf::from(e))),
+        _ => {
+            eprintln!(
+                "usage: offline_reference_sources <subject> <questioned> <references root> [extra reference]"
+            );
+            std::process::exit(2);
+        }
     };
     let root = PathBuf::from(root);
 
@@ -61,18 +67,12 @@ async fn main() -> unforged::Result<()> {
     let mut known = HashMap::new();
     known.insert(subject.clone(), vec![File::path(root.join(subject))]);
     let by_map = client(ReferenceSource::Map(known))?;
-    let card = root.join(subject).join("card.png");
-    let r = by_map
-        .nib()
-        .verify(
-            questioned,
-            VerifyOptions::subject(subject).with_references([card]),
-        )
-        .await?;
-    println!(
-        "a map, plus one more reference for this check: {:?}",
-        r.decision
-    );
+    let options = match extra {
+        Some(e) => VerifyOptions::subject(subject).with_references([e]),
+        None => VerifyOptions::subject(subject),
+    };
+    let r = by_map.nib().verify(questioned, options).await?;
+    println!("a map of your own: {:?}", r.decision);
 
     match by_map
         .nib()
