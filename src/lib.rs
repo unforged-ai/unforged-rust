@@ -18,6 +18,7 @@
 #![warn(missing_debug_implementations)]
 
 mod client;
+mod days;
 mod error;
 mod files;
 mod http;
@@ -31,6 +32,7 @@ pub mod account;
 #[cfg(feature = "blocking")]
 pub mod blocking;
 pub mod folio;
+pub mod licensing;
 pub mod loupe;
 pub mod nib;
 pub mod sig;

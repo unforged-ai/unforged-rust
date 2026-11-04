@@ -11,6 +11,7 @@ use crate::files::{self, File};
 
 pub(crate) const NIB_BINARY: &str = "unforged-nib";
 pub(crate) const LOUPE_BINARY: &str = "unforged-loupe";
+pub(crate) const LICENCE_SERVER_BINARY: &str = "unforged-licence-server";
 
 /// The offline licence: the file from the delivery pack, or its contents.
 #[derive(Clone, PartialEq, Eq)]
@@ -31,6 +32,21 @@ impl Licence {
             Licence::Text(t.to_string())
         } else {
             Licence::File(PathBuf::from(s))
+        }
+    }
+
+    /// The licence's text, read from its file when it's a file.
+    pub(crate) fn text(&self) -> Result<String> {
+        match self {
+            Licence::Text(t) => Ok(t.trim().to_string()),
+            Licence::File(p) => std::fs::read_to_string(p)
+                .map(|t| t.trim().to_string())
+                .map_err(|e| {
+                    Error::Io(std::io::Error::new(
+                        e.kind(),
+                        format!("{} couldn't be read: {e}", p.display()),
+                    ))
+                }),
         }
     }
 
@@ -172,6 +188,8 @@ pub(crate) struct Runner {
     pub licence: Option<Licence>,
     pub timeout: Option<Duration>,
     pub temp_dir: Option<PathBuf>,
+    /// Secrets the binary reads from its environment.
+    pub env: Vec<(&'static str, String)>,
 }
 
 impl fmt::Debug for Runner {
@@ -209,6 +227,7 @@ impl Runner {
             }
             None => {}
         }
+        cmd.envs(self.env.iter().map(|(k, v)| (k, v)));
         cmd.args(&args)
             .stdin(std::process::Stdio::null())
             .kill_on_drop(true);

@@ -145,6 +145,7 @@ The examples folder runs each of these against your own files:
 | `offline_signature_or_document` | a signature crop, a whole document, one region, a photo of a page |
 | `offline_forms` | form templates and named boxes |
 | `offline_extract_then_verify` | cutting out every signature, then checking each |
+| `give_licence` | a short-lived licence for a client, online or from your licence server |
 
 ```rust
 let licence = client.nib().licence().await?;
@@ -163,6 +164,10 @@ To switch without touching code, set the environment and use `Unforged::from_env
 | `UNFORGED_LICENSE` | | the licence itself, the text inside `nib.lic` |
 | `UNFORGED_LICENSE_FILE` | | or the path to `nib.lic` |
 | `UNFORGED_REFERENCE_SOURCE` | | optional: a folder with `{subject}` in its path |
+| `UNFORGED_LICENCE_SERVER_BINARY` | | path to `unforged-licence-server` |
+| `UNFORGED_SERVER_PASS` | | optional: the text inside `server.lic` |
+| `UNFORGED_MAIN_LICENSE` | | optional: your main licence, for the licence server |
+| `UNFORGED_STATE_DIR` | | optional: where the licence server keeps what it's loaded and given |
 
 A few things differ between the two. Online, a policy names one of your saved policies; offline
 it's a policy JSON file or value. Offline reads local files only, so download anything at a URL
@@ -228,6 +233,50 @@ let package = client
 A download is checked against the record's receipt before you get it, and a copy that doesn't
 match comes back as `Error::Integrity` rather than being saved. Changes your organisation asks a
 second person to approve come back as `Change::Pending` with the approval.
+
+## Licences for your own clients
+
+If your plan lets you give your clients short-lived licences, the same call gives one from your
+workspace online, or from your own licence server with no network at all:
+
+```rust
+use unforged::licensing::{Include, NewLicence};
+
+let licence = client
+    .licensing()
+    .give(NewLicence::new("Leeds branch").days(14).includes([Include::Nib]))
+    .await?;
+std::fs::write("leeds.lic", licence.token.expose())?;
+```
+
+Leave out the days and it runs for 30, or for the longest you may give if that's shorter. Leave
+out what it includes and it gets everything you're allowed to give. `licences()` lists the ones
+you've given either way.
+
+Online, you can also read your main licence (`main_licence()`, or `master()` with its text),
+revoke a licence so it stops counting towards your limit, make a download link your client opens
+to get the binaries for their licence, and list the releases you can download.
+
+Offline, the client runs `unforged-licence-server`. Give it the server's pass and your main
+licence and nothing needs loading on that machine, which suits a container:
+
+```rust
+use unforged::{Licence, Mode, Unforged};
+
+let client = Unforged::builder()
+    .mode(Mode::Offline)
+    .licence_server_pass(Licence::File("/run/secrets/server.lic".into()))
+    .licence_server_main_licence(Licence::File("/run/secrets/licence.lic".into()))
+    .build()?;
+let status = client.licensing().status().await?;
+if !status.ready {
+    println!("{}", status.message.unwrap_or_default());
+}
+```
+
+Or load them once with `load("server.lic")` and `load("licence.lic")`. `test(licence)` tells you
+what any Unforged licence is and whether it works on that computer today. A licence your server
+gave works offline until its last day, so it can't be revoked: give shorter ones instead.
 
 ## Errors
 
