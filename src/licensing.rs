@@ -341,7 +341,7 @@ impl Licensing<'_> {
             }
             Backend::Offline(_) => {
                 let out = run(&self.server()?, vec!["list".into(), "--json".into()], &[0]).await?;
-                let all: Vec<ShortLivedLicence> = decode(parse_json(&out.stdout)?)?;
+                let all: Vec<ShortLivedLicence> = decode(parse_json(&out)?)?;
                 Ok(all
                     .into_iter()
                     .map(ShortLivedLicence::with_status)
@@ -358,7 +358,15 @@ impl Licensing<'_> {
             &[0, 3],
         )
         .await?;
-        decode(parse_json(&out.stdout)?)
+        match parse_json(&out) {
+            Ok(v) => decode(v),
+            // nothing set up yet: it says so in a sentence rather than JSON
+            Err(Error::Licence { message }) => Ok(ServerStatus {
+                message: Some(message),
+                ..ServerStatus::default()
+            }),
+            Err(e) => Err(e),
+        }
     }
 
     /// Loads a file into your licence server: its pass (`server.lic`) or your main licence
@@ -379,7 +387,7 @@ impl Licensing<'_> {
         }
         args.push("--json".into());
         let out = run(&runner, args, &[0, 3, 4]).await?;
-        decode(parse_json(&out.stdout)?)
+        decode(parse_json(&out)?)
     }
 
     /// Your main licence, without its text (online only).
@@ -505,7 +513,7 @@ async fn give_offline(server: &Runner, new: &NewLicence) -> Result<ShortLivedLic
     }
     args.extend(["--out".into(), path_arg(&file), "--json".into()]);
     let out = run(server, args, &[0]).await?;
-    let mut v = parse_json(&out.stdout)?;
+    let mut v = parse_json(&out)?;
     if let Value::Object(m) = &mut v {
         m.remove("file");
     }
@@ -520,8 +528,14 @@ async fn run(server: &Runner, args: Vec<String>, ok: &[i32]) -> Result<crate::of
     })
 }
 
-fn parse_json(stdout: &str) -> Result<Value> {
-    serde_json::from_str(stdout.trim()).map_err(|_| Error::Offline {
+/// The server's JSON answer; when it answered with only a sentence instead, that sentence.
+fn parse_json(out: &crate::offline::Output) -> Result<Value> {
+    if out.stdout.trim().is_empty() && !out.notices.is_empty() {
+        return Err(Error::Licence {
+            message: out.notices.join(" "),
+        });
+    }
+    serde_json::from_str(out.stdout.trim()).map_err(|_| Error::Offline {
         message: "the licence server's answer wasn't JSON".into(),
         exit_code: Some(0),
         stderr: String::new(),

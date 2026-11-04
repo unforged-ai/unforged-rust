@@ -171,7 +171,6 @@ async fn the_main_licence_releases_and_links_read_back() {
 #[cfg(unix)]
 mod offline {
     use super::*;
-    use std::os::unix::fs::PermissionsExt;
     use std::path::PathBuf;
 
     /// A stand-in licence server: logs its arguments, its licence and the `--out` file's folder,
@@ -195,8 +194,18 @@ mod offline {
                  {body}\n"
             );
             let bin = dir.path().join("bin");
-            std::fs::write(&bin, script).unwrap();
-            std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).unwrap();
+            // written by a child process, so no test here forks while holding it open for
+            // writing (which makes running it fail with "text file busy")
+            let src = dir.path().join("bin.src");
+            std::fs::write(&src, script).unwrap();
+            let ok = std::process::Command::new("sh")
+                .arg("-c")
+                .arg("cp \"$0\" \"$1\" && chmod 755 \"$1\"")
+                .arg(&src)
+                .arg(&bin)
+                .status()
+                .unwrap();
+            assert!(ok.success());
             Server { dir }
         }
 
@@ -312,6 +321,28 @@ mod offline {
         assert!(client.licensing().status().await.unwrap().ready);
         assert_eq!(s.read("setup-env"), format!("ufsrv1.pass|{TOKEN}"));
         assert_eq!(s.args(), ["status", "--json"]);
+    }
+
+    #[tokio::test]
+    async fn a_server_with_nothing_set_up_says_so_in_its_own_words() {
+        let s = Server::new(
+            "echo \"This licence server hasn't been set up yet. Load its pass and your main licence.\" >&2; exit 3",
+        );
+        let client = s.client();
+        let st = client.licensing().status().await.unwrap();
+        assert!(!st.ready);
+        assert!(st
+            .message
+            .unwrap()
+            .starts_with("This licence server hasn't been set up"));
+        match client
+            .licensing()
+            .test(Licence::File("/nowhere.lic".into()))
+            .await
+        {
+            Err(Error::Licence { message }) => assert!(message.starts_with("This licence server")),
+            other => panic!("{other:?}"),
+        }
     }
 
     #[tokio::test]
