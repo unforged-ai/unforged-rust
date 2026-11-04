@@ -363,6 +363,22 @@ mod offline {
     }
 
     #[tokio::test]
+    async fn a_request_the_server_cant_take_is_bad_input() {
+        let s = Server::new("echo 'A short-lived licence can run for 1 to 30 days.' >&2; exit 2");
+        match s
+            .client()
+            .licensing()
+            .give(NewLicence::new("Leeds").days(31))
+            .await
+        {
+            Err(Error::InvalidInput(m)) => {
+                assert_eq!(m, "A short-lived licence can run for 1 to 30 days.")
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+
+    #[tokio::test]
     async fn workspace_only_calls_say_what_to_do_offline() {
         let s = Server::new("exit 0");
         let client = s.client();

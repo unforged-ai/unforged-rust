@@ -524,6 +524,12 @@ async fn give_offline(server: &Runner, new: &NewLicence) -> Result<ShortLivedLic
 async fn run(server: &Runner, args: Vec<String>, ok: &[i32]) -> Result<crate::offline::Output> {
     server.run(args, None, ok).await.map_err(|e| match e {
         Error::CheckFailed { detail, .. } => Error::invalid(detail),
+        // a request it can't take, such as too many days, in its own words
+        Error::Offline {
+            message,
+            exit_code: Some(2),
+            ..
+        } => Error::invalid(message),
         other => other,
     })
 }
