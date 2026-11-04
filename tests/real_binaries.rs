@@ -215,3 +215,89 @@ async fn loupe_checks_with_the_real_binary() {
     assert_eq!(r.result.documents.len(), 1);
     assert!(r.result.verdict.is_some());
 }
+
+/// The real licence server: `UNFORGED_TEST_LICENCE_SERVER` (the binary), with
+/// `UNFORGED_TEST_SERVER_PASS` (`server.lic`) and `UNFORGED_TEST_MAIN_LICENCE` to give licences.
+/// Its state goes in a folder of its own that's removed afterwards.
+fn licence_server() -> Option<(Unforged, tempfile::TempDir, bool)> {
+    let Some(bin) = env("UNFORGED_TEST_LICENCE_SERVER") else {
+        eprintln!("skipped: set UNFORGED_TEST_LICENCE_SERVER to run this against the real binary");
+        return None;
+    };
+    let state = tempfile::tempdir().unwrap();
+    let mut b = Unforged::builder()
+        .mode(Mode::Offline)
+        .licence_server_binary(bin)
+        .licence_server_state_dir(state.path());
+    let pass = env("UNFORGED_TEST_SERVER_PASS");
+    let main = env("UNFORGED_TEST_MAIN_LICENCE");
+    assert_eq!(
+        pass.is_some(),
+        main.is_some(),
+        "set both UNFORGED_TEST_SERVER_PASS and UNFORGED_TEST_MAIN_LICENCE, or neither"
+    );
+    let can_give = pass.is_some();
+    if let (Some(p), Some(m)) = (pass, main) {
+        b = b
+            .licence_server_pass(Licence::File(p))
+            .licence_server_main_licence(Licence::File(m));
+    }
+    Some((b.build().unwrap(), state, can_give))
+}
+
+#[tokio::test]
+async fn the_real_licence_server_gives_a_licence_nib_accepts() {
+    let Some((client, state, can_give)) = licence_server() else {
+        return;
+    };
+    let licensing = client.licensing();
+    let status = licensing.status().await.unwrap();
+    assert_eq!(status.ready, can_give, "{:?}", status.message);
+    if !can_give {
+        let e = licensing
+            .give(unforged::licensing::NewLicence::new("SDK test"))
+            .await
+            .unwrap_err();
+        println!("without a pass: {e}");
+        return;
+    }
+    let given = licensing
+        .give(unforged::licensing::NewLicence::new("SDK test").days(2))
+        .await
+        .unwrap();
+    assert!(!given.token.is_empty());
+    assert_eq!(given.status, "active");
+    let listed = licensing.licences().await.unwrap();
+    assert!(listed.iter().any(|l| l.id == given.id));
+
+    let t = licensing
+        .test(Licence::Text(given.token.expose().into()))
+        .await
+        .unwrap();
+    assert!(t.works, "{:?}", t.message);
+    assert_eq!(t.made_by, "licence_server");
+    assert_eq!(t.for_name.as_deref(), Some("SDK test"));
+
+    if let Some(nib_bin) = env("UNFORGED_TEST_BINARY") {
+        let nib = Unforged::builder()
+            .mode(Mode::Offline)
+            .nib_binary(nib_bin)
+            .licence_from(Licence::Text(given.token.expose().into()))
+            .build()
+            .unwrap();
+        let l = nib.nib().licence().await.unwrap();
+        assert_eq!(l.issued_for.as_deref(), Some("SDK test"));
+    }
+    drop(state);
+}
+
+#[tokio::test]
+async fn the_real_licence_server_tests_any_licence() {
+    let (Some((client, _state, _)), Some(lic)) = (licence_server(), env("UNFORGED_TEST_LICENCE"))
+    else {
+        return;
+    };
+    let t = client.licensing().test(Licence::File(lic)).await.unwrap();
+    println!("{} {} works={} {:?}", t.is, t.issued_to, t.works, t.message);
+    assert!(!t.is.is_empty());
+}

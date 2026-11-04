@@ -5,7 +5,9 @@ use std::time::Duration;
 
 use crate::error::{ApiError, ApiErrorKind, Error, Result};
 use crate::http::{base_url_for, HttpConfig, Transport};
-use crate::offline::{find_binary, Licence, ReferenceSource, Runner, LOUPE_BINARY, NIB_BINARY};
+use crate::offline::{
+    find_binary, Licence, ReferenceSource, Runner, LICENCE_SERVER_BINARY, LOUPE_BINARY, NIB_BINARY,
+};
 
 /// Where checks run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -28,9 +30,35 @@ impl Mode {
     }
 }
 
+/// What the licence server runs with when nothing is loaded into it.
+#[derive(Default, Clone)]
+struct ServerSetup {
+    pass: Option<Licence>,
+    main_licence: Option<Licence>,
+    state_dir: Option<PathBuf>,
+}
+
+impl ServerSetup {
+    fn env(&self) -> Result<Vec<(&'static str, String)>> {
+        let mut env = Vec::new();
+        if let Some(p) = &self.pass {
+            env.push(("UNFORGED_SERVER_PASS", p.text()?));
+        }
+        if let Some(m) = &self.main_licence {
+            env.push(("UNFORGED_MAIN_LICENSE", m.text()?));
+        }
+        if let Some(d) = &self.state_dir {
+            env.push(("UNFORGED_STATE_DIR", d.to_string_lossy().into_owned()));
+        }
+        Ok(env)
+    }
+}
+
 pub(crate) struct OfflineSettings {
     nib_binary: Option<PathBuf>,
     loupe_binary: Option<PathBuf>,
+    licence_server_binary: Option<PathBuf>,
+    server: ServerSetup,
     licence: Option<Licence>,
     timeout: Option<Duration>,
     temp_dir: Option<PathBuf>,
@@ -46,6 +74,7 @@ impl OfflineSettings {
             licence: self.licence.clone(),
             timeout: self.timeout,
             temp_dir: self.temp_dir.clone(),
+            env: Vec::new(),
         })
     }
 
@@ -56,11 +85,25 @@ impl OfflineSettings {
     pub fn loupe(&self) -> Result<Runner> {
         self.runner(&self.loupe_binary, "UNFORGED_LOUPE_BINARY", LOUPE_BINARY)
     }
+
+    pub fn licence_server(&self) -> Result<Runner> {
+        Ok(Runner {
+            binary: find_binary(
+                self.licence_server_binary.clone(),
+                "UNFORGED_LICENCE_SERVER_BINARY",
+                LICENCE_SERVER_BINARY,
+            )?,
+            licence: None,
+            timeout: self.timeout,
+            temp_dir: self.temp_dir.clone(),
+            env: self.server.env()?,
+        })
+    }
 }
 
 pub(crate) enum Backend {
     Hosted(Transport),
-    Offline(OfflineSettings),
+    Offline(Box<OfflineSettings>),
 }
 
 /// One client for Unforged: through the API, or offline with the binaries from the delivery
@@ -131,6 +174,12 @@ impl Unforged {
         )?))
     }
 
+    /// Licences for the offline binaries: your main licence, and short-lived licences for your
+    /// own clients, from your workspace (online) or your licence server (offline).
+    pub fn licensing(&self) -> crate::licensing::Licensing<'_> {
+        crate::licensing::Licensing(self)
+    }
+
     /// Your organisation's keys and audit log, and the API's status (online only).
     pub fn account(&self) -> Result<crate::account::Account<'_>> {
         Ok(crate::account::Account(self.hosted(
@@ -178,6 +227,8 @@ pub struct Builder {
     poll_interval: Option<Duration>,
     nib_binary: Option<PathBuf>,
     loupe_binary: Option<PathBuf>,
+    licence_server_binary: Option<PathBuf>,
+    server: ServerSetup,
     licence: Option<Licence>,
     reference_source: Option<ReferenceSource>,
     temp_dir: Option<PathBuf>,
@@ -257,6 +308,33 @@ impl Builder {
         self
     }
 
+    /// The `unforged-licence-server` binary (else `UNFORGED_LICENCE_SERVER_BINARY`, else `PATH`).
+    pub fn licence_server_binary(mut self, path: impl Into<PathBuf>) -> Self {
+        self.licence_server_binary = Some(path.into());
+        self
+    }
+
+    /// The licence server's own pass, `server.lic` or its contents, so it needs nothing loaded
+    /// (else `UNFORGED_SERVER_PASS`, else what was loaded into it).
+    pub fn licence_server_pass(mut self, pass: Licence) -> Self {
+        self.server.pass = Some(pass);
+        self
+    }
+
+    /// Your main licence for the licence server, its file or its contents (else
+    /// `UNFORGED_MAIN_LICENSE`, else what was loaded into it).
+    pub fn licence_server_main_licence(mut self, licence: Licence) -> Self {
+        self.server.main_licence = Some(licence);
+        self
+    }
+
+    /// Where the licence server keeps what's loaded and the licences it gave (else
+    /// `UNFORGED_STATE_DIR`, else its own folder).
+    pub fn licence_server_state_dir(mut self, dir: impl Into<PathBuf>) -> Self {
+        self.server.state_dir = Some(dir.into());
+        self
+    }
+
     /// The offline licence: the path to `nib.lic` or its contents (else `UNFORGED_LICENSE_FILE`
     /// or `UNFORGED_LICENSE`).
     pub fn licence(mut self, licence: impl Into<String>) -> Self {
@@ -302,9 +380,11 @@ impl Builder {
             None => Mode::parse(&env("UNFORGED_MODE").unwrap_or_default())?,
         };
         let backend = match mode {
-            Mode::Offline => Backend::Offline(OfflineSettings {
+            Mode::Offline => Backend::Offline(Box::new(OfflineSettings {
                 nib_binary: self.nib_binary,
                 loupe_binary: self.loupe_binary,
+                licence_server_binary: self.licence_server_binary,
+                server: self.server,
                 licence: self.licence.or_else(Licence::from_env),
                 timeout: self.timeout,
                 temp_dir: self.temp_dir,
@@ -313,7 +393,7 @@ impl Builder {
                     .or_else(|| env("UNFORGED_REFERENCE_SOURCE").map(ReferenceSource::Folder)),
                 templates: self.templates,
                 auto_approve: self.auto_approve,
-            }),
+            })),
             Mode::Hosted => {
                 let api_key = self
                     .api_key
