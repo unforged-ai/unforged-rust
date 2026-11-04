@@ -246,7 +246,7 @@ let licence = client
     .licensing()
     .give(NewLicence::new("Leeds branch").days(14).includes([Include::Nib]))
     .await?;
-std::fs::write("leeds.lic", licence.token.expose())?;
+tokio::fs::write("leeds.lic", licence.token.expose()).await?;
 ```
 
 Leave out the days and it runs for 30, or for the longest you may give if that's shorter. Leave

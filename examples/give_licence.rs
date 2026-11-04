@@ -22,7 +22,7 @@ async fn main() -> unforged::Result<()> {
     let client = Unforged::from_env()?;
     let licensing = client.licensing();
     let licence = licensing.give(new).await?;
-    std::fs::write(&out, format!("{}\n", licence.token.expose()))?;
+    tokio::fs::write(&out, format!("{}\n", licence.token.expose())).await?;
     println!(
         "{} can use it from {} to {} ({}): {out}",
         licence.for_name,
