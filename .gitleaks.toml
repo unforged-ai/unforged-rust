@@ -1,0 +1,11 @@
+# The secret scan (UNF-878; nightly in security-scan.yml): gitleaks' own rules over the whole
+# history, less the tests' made-up licences. A real key belongs in the environment, never here.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "tests and fixtures"
+paths = [
+  '''(^|/)tests?/''',
+  '''(^|/)fixtures/''',
+]

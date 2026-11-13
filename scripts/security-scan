@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# The nightly security scans (UNF-878; .github/workflows/security-scan.yml), runnable locally:
+#
+#   scripts/security-scan semgrep   code scanning of what we ship: the SDK, its examples and the
+#                                   workflows. Fails on an ERROR-severity finding; warnings are
+#                                   listed in the summary.
+#   scripts/security-scan secrets   gitleaks over the whole history (.gitleaks.toml), less the
+#                                   reviewed findings in .gitleaksignore. Fails on any finding.
+#
+# Semgrep comes from pip (pinned below); gitleaks from its release, checked against the pinned
+# SHA-256. Results go to $OUT (default target/security-scan) and, in Actions, the run's summary.
+set -euo pipefail
+
+SEMGREP_VERSION=1.185.0
+GITLEAKS_VERSION=8.24.3
+GITLEAKS_SHA256=9991e0b2903da4c8f6122b5c3186448b927a5da4deef1fe45271c3793f4ee29c
+# the rules: Semgrep's security audit, secrets, Rust and the workflows
+SEMGREP_CONFIGS=(p/security-audit p/secrets p/rust p/github-actions)
+# what we ship; tests, fixtures and generated files are left out
+SEMGREP_PATHS=(src examples .github)
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+OUT="${OUT:-$root/target/security-scan}"
+mkdir -p "$OUT"
+summary="${GITHUB_STEP_SUMMARY:-/dev/null}"
+
+semgrep_scan() {
+  command -v semgrep >/dev/null || python3 -m pip install --quiet "semgrep==$SEMGREP_VERSION"
+  local args=()
+  for c in "${SEMGREP_CONFIGS[@]}"; do args+=(--config "$c"); done
+  (cd "$root" && semgrep scan "${args[@]}" --metrics off --quiet --json -o "$OUT/semgrep.json" \
+    --exclude tests --exclude fixtures --exclude '*.test.ts' --exclude 'e2e' \
+    "${SEMGREP_PATHS[@]}") || true
+  python3 -I - "$OUT/semgrep.json" "$summary" <<'PY'
+import json, sys
+results = json.load(open(sys.argv[1])).get("results", [])
+rank = {"ERROR": 0, "WARNING": 1}
+shown = sorted((r for r in results if r["extra"]["severity"] in rank),
+               key=lambda r: (rank[r["extra"]["severity"]], r["path"], r["start"]["line"]))
+errors = [r for r in shown if r["extra"]["severity"] == "ERROR"]
+lines = [f"### Semgrep: {len(errors)} errors, {len(shown) - len(errors)} warnings", ""]
+for r in shown:
+    lines.append(f"- {r['extra']['severity']} `{r['check_id'].rsplit('.', 1)[-1]}` "
+                 f"{r['path']}:{r['start']['line']}")
+text = "\n".join(lines) + "\n"
+print(text)
+with open(sys.argv[2], "a") as f:
+    f.write(text)
+sys.exit(1 if errors else 0)
+PY
+}
+
+gitleaks_bin() {
+  if command -v gitleaks >/dev/null; then command -v gitleaks; return; fi
+  local dir="$OUT/bin" tgz
+  mkdir -p "$dir"
+  if [ ! -x "$dir/gitleaks" ]; then
+    tgz="$dir/gitleaks.tgz"
+    curl -fsSL -o "$tgz" \
+      "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+    echo "$GITLEAKS_SHA256  $tgz" | sha256sum -c --quiet
+    tar -xzf "$tgz" -C "$dir" gitleaks
+  fi
+  echo "$dir/gitleaks"
+}
+
+secrets_scan() {
+  local bin status=0
+  bin="$(gitleaks_bin)"
+  (cd "$root" && "$bin" git --no-banner --redact -c .gitleaks.toml -r "$OUT/gitleaks.json" .) || status=$?
+  python3 -I - "$OUT/gitleaks.json" "$summary" <<'PY'
+import json, sys
+found = json.load(open(sys.argv[1]))
+lines = [f"### Secrets: {len(found)} found", ""]
+lines += [f"- `{f['RuleID']}` {f['File']}:{f['StartLine']} (commit {f['Commit'][:8]})" for f in found]
+text = "\n".join(lines) + "\n"
+print(text)
+with open(sys.argv[2], "a") as f:
+    f.write(text)
+PY
+  return "$status"
+}
+
+case "${1:-}" in
+semgrep) semgrep_scan ;;
+secrets) secrets_scan ;;
+*) echo "usage: scripts/security-scan semgrep|secrets" >&2; exit 2 ;;
+esac
