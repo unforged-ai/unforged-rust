@@ -1,0 +1,34 @@
+# Dependabot version updates (UNF-878, as the platform repo's UNF-404): weekly, minor and patch
+# grouped; a version update waits 7 days after its release, security updates do not.
+# Dependabot's branches are exempt from the ticket-id check (scripts/ticket-ids).
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/London
+    labels: [dependencies]
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+    groups:
+      cargo-minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/London
+    labels: [dependencies]
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+    groups:
+      actions-minor-and-patch:
+        update-types: [minor, patch]

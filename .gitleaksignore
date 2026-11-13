@@ -1,0 +1,5 @@
+# Findings of the secret scan reviewed and not secrets, by fingerprint (UNF-878).
+# the quickstart's usage line, `UNFORGED_API_KEY=unf_...`
+38eb6fca5631a2e7c6a86f306d3ecea5ff6b12f3:examples/quickstart.rs:generic-api-key:1
+# a made-up licence in a unit test
+da7cd95a16fd60a51e2966e8a2cca6b5f28c9322:src/offline.rs:jwt:351

@@ -1,0 +1,46 @@
+# The nightly security scans (UNF-878; scripts/security-scan): Semgrep's security rules over the
+# SDK, gitleaks over the whole history, and the RustSec advisories through cargo deny, so an
+# advisory published since the last pull request is caught. A failure is a finding to fix, never
+# to silence. Actions are pinned by commit SHA.
+name: security-scan
+
+on:
+  schedule:
+    - cron: "3 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  semgrep:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Semgrep (errors fail, warnings in the summary)
+        run: scripts/security-scan semgrep
+
+  secrets:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: gitleaks over the whole history
+        run: scripts/security-scan secrets
+
+  advisories:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cargo/bin/cargo-deny
+          key: cargo-deny-${{ runner.os }}
+      - name: cargo deny (advisories)
+        run: |
+          command -v cargo-deny >/dev/null || cargo install cargo-deny --locked
+          cargo deny check advisories
